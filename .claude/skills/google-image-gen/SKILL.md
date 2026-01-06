@@ -21,9 +21,15 @@ If the environment check fails, the user needs to create `.env` in the skill dir
 
 ## Usage
 
+**Important:** Run the script from the skill directory. Use `../../../` to save images to the project root.
+
 ```bash
-uv run python .claude/skills/google-image-gen/main.py <output_path> "<prompt>" [options]
+cd .claude/skills/google-image-gen && uv run python main.py ../../../<output_path> "<prompt>" [options]
 ```
+
+**Project root path:** `../../../` (relative to skill directory)
+
+**Note:** If the user specifies a custom output path (e.g., `images/photo.png`), they likely mean relative to the project root. Always prepend `../../../` to such paths (e.g., `../../../images/photo.png`).
 
 ## Options
 
@@ -36,28 +42,36 @@ uv run python .claude/skills/google-image-gen/main.py <output_path> "<prompt>" [
 
 ## Examples
 
-### Simple Generation
+All examples assume you run from the skill directory (`cd .claude/skills/google-image-gen`).
+
+### Simple Generation (saves to project root)
 
 ```bash
-uv run python .claude/skills/google-image-gen/main.py output.png "A red apple on a wooden table"
+cd .claude/skills/google-image-gen && uv run python main.py ../../../output.png "A red apple on a wooden table"
+```
+
+### Save to subdirectory in project root
+
+```bash
+cd .claude/skills/google-image-gen && uv run python main.py ../../../images/output.png "A red apple"
 ```
 
 ### With Aspect Ratio
 
 ```bash
-uv run python .claude/skills/google-image-gen/main.py thumb.png "Mountain landscape" --aspect 16:9
+cd .claude/skills/google-image-gen && uv run python main.py ../../../thumb.png "Mountain landscape" --aspect 16:9
 ```
 
 ### Edit Existing Image
 
 ```bash
-uv run python .claude/skills/google-image-gen/main.py output.png "Change the sky to sunset" --edit input.png
+cd .claude/skills/google-image-gen && uv run python main.py ../../../output.png "Change the sky to sunset" --edit ../../../input.png
 ```
 
 ### With Reference Image
 
 ```bash
-uv run python .claude/skills/google-image-gen/main.py output.png "Same style but with a car" --ref reference.png
+cd .claude/skills/google-image-gen && uv run python main.py ../../../output.png "Same style but with a car" --ref ../../../reference.png
 ```
 
 ### Multiple Variations
@@ -65,7 +79,7 @@ uv run python .claude/skills/google-image-gen/main.py output.png "Same style but
 Generates numbered outputs (output_1.png, output_2.png, etc.):
 
 ```bash
-uv run python .claude/skills/google-image-gen/main.py output.png "cat" "dog" "bird"
+cd .claude/skills/google-image-gen && uv run python main.py ../../../output.png "cat" "dog" "bird"
 ```
 
 ## Workflow
