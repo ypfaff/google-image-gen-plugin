@@ -1,15 +1,13 @@
 #!/usr/bin/env bash
 #
-# Copyright 2024 Google Image Gen Skill
-#
-# Pre-flight environment check for Google Image Generation.
+# Pre-flight environment check for Google Image Generation plugin.
 # Validates API key configuration and dependencies.
 #
 # Usage:
-#   ./check_env.sh [skill_dir]
+#   ./check_env.sh [plugin_dir]
 #
 # Arguments:
-#   skill_dir: Optional path to the skill directory (default: script's parent)
+#   plugin_dir: Optional path to the plugin directory (default: script's parent)
 #
 # Exit codes:
 #   0: All checks passed
@@ -20,11 +18,11 @@ set -o errexit
 set -o nounset
 set -o pipefail
 
-# Determine skill directory (where this script lives)
+# Determine plugin directory (where this script lives)
 readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-readonly SKILL_DIR="${1:-$(dirname "${SCRIPT_DIR}")}"
-readonly ENV_FILE="${SKILL_DIR}/.env"
-readonly MAIN_SCRIPT="${SKILL_DIR}/main.py"
+readonly PLUGIN_DIR="${1:-$(dirname "${SCRIPT_DIR}")}"
+readonly MAIN_SCRIPT="${PLUGIN_DIR}/main.py"
+readonly HOME_ENV="${HOME}/.config/google-image-gen/.env"
 
 # ANSI color codes
 readonly RED='\033[0;31m'
@@ -60,39 +58,58 @@ print_warn() {
 }
 
 #######################################
-# Check if .env file exists and contains valid API key.
+# Check if GOOGLE_AI_API_KEY is available from any source.
+# Checks in order:
+#   1. Environment variable
+#   2. ~/.config/google-image-gen/.env
+#   3. Plugin directory .env
 # Returns:
-#   0 if valid, 1 if invalid
+#   0 if valid, 1 if not found
 #######################################
-check_env_file() {
-  if [[ ! -f "${ENV_FILE}" ]]; then
-    print_error ".env file not found at ${ENV_FILE}"
-    echo "       Create it with: echo 'GOOGLE_AI_API_KEY=your_key' > .env"
-    echo "       Get API key from: https://aistudio.google.com/apikey"
-    return 1
+check_api_key() {
+  # 1. Check environment variable
+  if [[ -n "${GOOGLE_AI_API_KEY:-}" ]] \
+      && [[ "${GOOGLE_AI_API_KEY}" != "your_key_here" ]] \
+      && [[ "${GOOGLE_AI_API_KEY}" != "your_api_key_here" ]]; then
+    print_ok "GOOGLE_AI_API_KEY is set in environment"
+    return 0
   fi
 
-  print_ok ".env file found"
-
-  if ! grep -q "^GOOGLE_AI_API_KEY=" "${ENV_FILE}"; then
-    print_error "GOOGLE_AI_API_KEY not found in .env"
-    echo "       Add: GOOGLE_AI_API_KEY=your_key_here"
-    return 1
+  # 2. Check home config (recommended)
+  if [[ -f "${HOME_ENV}" ]]; then
+    if grep -q "^GOOGLE_AI_API_KEY=" "${HOME_ENV}"; then
+      local key_value
+      key_value="$(grep "^GOOGLE_AI_API_KEY=" "${HOME_ENV}" | cut -d'=' -f2)"
+      if [[ -n "${key_value}" ]] \
+          && [[ "${key_value}" != "your_key_here" ]] \
+          && [[ "${key_value}" != "your_api_key_here" ]]; then
+        print_ok "GOOGLE_AI_API_KEY found in ${HOME_ENV}"
+        return 0
+      fi
+    fi
   fi
 
-  local key_value
-  key_value="$(grep "^GOOGLE_AI_API_KEY=" "${ENV_FILE}" | cut -d'=' -f2)"
-
-  if [[ -z "${key_value}" ]] \
-      || [[ "${key_value}" == "your_key_here" ]] \
-      || [[ "${key_value}" == "your_api_key_here" ]]; then
-    print_error "GOOGLE_AI_API_KEY contains placeholder value"
-    echo "       Edit .env and set your actual API key"
-    return 1
+  # 3. Check plugin directory .env
+  local plugin_env="${PLUGIN_DIR}/.env"
+  if [[ -f "${plugin_env}" ]]; then
+    if grep -q "^GOOGLE_AI_API_KEY=" "${plugin_env}"; then
+      local key_value
+      key_value="$(grep "^GOOGLE_AI_API_KEY=" "${plugin_env}" | cut -d'=' -f2)"
+      if [[ -n "${key_value}" ]] \
+          && [[ "${key_value}" != "your_key_here" ]] \
+          && [[ "${key_value}" != "your_api_key_here" ]]; then
+        print_ok "GOOGLE_AI_API_KEY found in ${plugin_env}"
+        return 0
+      fi
+    fi
   fi
 
-  print_ok "GOOGLE_AI_API_KEY is configured"
-  return 0
+  print_error "GOOGLE_AI_API_KEY not found"
+  echo "       Set it using one of these methods:"
+  echo "       1. Create ~/.config/google-image-gen/.env with: GOOGLE_AI_API_KEY=your_key"
+  echo "       2. export GOOGLE_AI_API_KEY=your_key"
+  echo "       Get API key from: https://aistudio.google.com/apikey"
+  return 1
 }
 
 #######################################
@@ -134,10 +151,10 @@ main() {
   local checks_passed=true
 
   echo "=== Google Image Gen Environment Check ==="
-  echo "Skill directory: ${SKILL_DIR}"
+  echo "Plugin directory: ${PLUGIN_DIR}"
   echo ""
 
-  check_env_file || checks_passed=false
+  check_api_key || checks_passed=false
   check_uv_installed
   check_main_script || checks_passed=false
 

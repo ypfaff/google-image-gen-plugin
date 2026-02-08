@@ -4,11 +4,12 @@
 Generate images from text prompts or edit existing images using Google's Gemini API.
 Supports reference images and style templates for consistency.
 
-This script is part of the google-image-gen Claude Code skill.
+This script is part of the google-image-gen Claude Code plugin.
 
 Setup:
     1. Get API key from https://aistudio.google.com/apikey
-    2. Create .env file in skill directory with: GOOGLE_AI_API_KEY=your_key_here
+    2. Create ~/.config/google-image-gen/.env with: GOOGLE_AI_API_KEY=your_key_here
+       Or export GOOGLE_AI_API_KEY=your_key_here
     3. Run: uv sync (or pip install google-genai python-dotenv pillow)
 
 Usage:
@@ -29,6 +30,9 @@ Usage:
 
     # Specify aspect ratio
     uv run python main.py output.png "Prompt" --aspect 16:9
+
+    # Use --cwd to resolve relative paths against a different directory
+    uv run python main.py --cwd /path/to/project output.png "Prompt"
 
 Aspect ratios: 1:1, 3:4, 4:3, 4:5, 5:4, 9:16, 16:9, 21:9
 """
@@ -246,6 +250,13 @@ def generate_image(
     return False
 
 
+def _resolve_path(path: Path, base_dir: Path) -> Path:
+    """Resolve a relative path against a base directory."""
+    if path.is_absolute():
+        return path
+    return base_dir / path
+
+
 def main() -> int:
     """Main entry point.
 
@@ -262,6 +273,7 @@ Examples:
   python main.py output.png "cube" "sphere" --style styles/blue_glass_3d.md
   python main.py output.png "Make it green" --edit input.png
   python main.py output.png "Similar style" --ref style.png
+  python main.py --cwd /path/to/project output.png "Prompt"
         """,
     )
     parser.add_argument(
@@ -293,31 +305,52 @@ Examples:
         choices=["1:1", "3:4", "4:3", "4:5", "5:4", "9:16", "16:9", "21:9"],
         help="Aspect ratio (default: 16:9)",
     )
+    parser.add_argument(
+        "--cwd",
+        help="Base directory for resolving relative paths (default: current directory)",
+    )
     args = parser.parse_args()
 
-    # Load .env from script directory first, then current directory
+    # Resolve base directory for relative paths
+    base_dir = Path(args.cwd) if args.cwd else Path.cwd()
+
+    # Load .env with fallback chain
     script_dir = Path(__file__).parent
+
+    # 1. User home config (primary recommended location)
+    home_env = Path.home() / ".config" / "google-image-gen" / ".env"
+    if home_env.exists():
+        load_dotenv(home_env)
+
+    # 2. Plugin/script directory .env (for development)
     env_path = script_dir / ".env"
     if env_path.exists():
-        load_dotenv(env_path)
-    load_dotenv()  # Also try current directory
+        load_dotenv(env_path, override=False)
+
+    # 3. User's project directory .env (fallback)
+    project_env = base_dir / ".env"
+    if project_env.exists():
+        load_dotenv(project_env, override=False)
 
     if not os.environ.get("GOOGLE_AI_API_KEY"):
         print("Error: GOOGLE_AI_API_KEY not found in environment")
-        print("Create a .env file with: GOOGLE_AI_API_KEY=your_key_here")
+        print("Set up your API key using one of these methods:")
+        print("  1. Create ~/.config/google-image-gen/.env with: GOOGLE_AI_API_KEY=your_key_here")
+        print("  2. Export: export GOOGLE_AI_API_KEY=your_key_here")
         print("Get your API key from: https://aistudio.google.com/apikey")
         return 1
 
-    output_path = Path(args.output)
+    # Resolve all paths against base_dir
+    output_path = _resolve_path(Path(args.output), base_dir)
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
     # Load style template if provided
     style_template = None
     if args.style:
-        style_path = Path(args.style)
-        # If relative path, check relative to script directory first
-        if not style_path.is_absolute() and not style_path.exists():
-            script_relative = script_dir / style_path
+        style_path = _resolve_path(Path(args.style), base_dir)
+        # If resolved path doesn't exist, also check relative to script directory
+        if not style_path.exists():
+            script_relative = script_dir / args.style
             if script_relative.exists():
                 style_path = script_relative
 
@@ -333,10 +366,12 @@ Examples:
     if style_template:
         prompts = [apply_style_template(style_template, p) for p in prompts]
 
-    ref_images = [Path(r) for r in args.references] if args.references else None
+    ref_images = None
+    if args.references:
+        ref_images = [_resolve_path(Path(r), base_dir) for r in args.references]
 
     if args.edit:
-        input_path = Path(args.edit)
+        input_path = _resolve_path(Path(args.edit), base_dir)
         if not input_path.exists():
             print(f"Error: Input image not found: {input_path}")
             return 1

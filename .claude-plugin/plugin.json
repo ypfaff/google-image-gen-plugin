@@ -1,0 +1,10 @@
+{
+  "name": "google-image-gen",
+  "description": "Generate and edit images using Google's Gemini API",
+  "version": "1.0.0",
+  "author": {
+    "name": "Yannick Pfaff"
+  },
+  "repository": "https://github.com/ypfaff/google-image-gen-plugin",
+  "license": "MIT"
+}

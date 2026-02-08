@@ -194,7 +194,7 @@ wheels = [
 ]
 
 [[package]]
-name = "google-image-gen-skill"
+name = "google-image-gen-plugin"
 version = "1.0.0"
 source = { virtual = "." }
 dependencies = [
