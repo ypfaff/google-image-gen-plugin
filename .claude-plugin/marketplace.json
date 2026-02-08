@@ -6,7 +6,7 @@
   "plugins": [
     {
       "name": "google-image-gen",
-      "source": ".",
+      "source": "./",
       "description": "Generate and edit images using Google's Gemini API"
     }
   ]
